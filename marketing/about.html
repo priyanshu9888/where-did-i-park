@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>About — Where Did I Park</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">Where Did I Park</a>
+      <nav>
+        <a href="/marketing/index.html">Home</a>
+        <a href="/marketing/pricing.html">Pricing</a>
+        <a href="/marketing/about.html">About</a>
+        <a class="btn open-app" href="/">Open App</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="container" style="padding:60px 28px">
+      <h1>About us</h1>
+      <p class="lead">We built Where Did I Park to make life a little easier. Save where you parked and never forget again.</p>
+
+      <h2 style="margin-top:28px">Mission</h2>
+      <p>To make parking simple and stress-free, with privacy-respecting local storage and optional cloud features.</p>
+
+      <h2 style="margin-top:28px">Team</h2>
+      <p>Small, focused team building delightful tooling.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>© {new Date().getFullYear()} Where Did I Park</div>
+      <div class="footer-links">
+        <a href="/marketing/index.html">Home</a>
+        <a href="/marketing/pricing.html">Pricing</a>
+      </div>
+    </div>
+  <script>
+    (function(){
+      const appUrl = 'http://127.0.0.1:5173/';
+      document.querySelectorAll('a.open-app').forEach(a=>a.href = appUrl);
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.right = '16px';
+      container.style.bottom = '16px';
+      container.style.zIndex = '9999';
+      container.innerHTML = '<a class="btn primary" id="openAppSame">Open App (same tab)</a> <a class="btn ghost" id="openAppNew">Open App (new tab)</a>';
+      document.body.appendChild(container);
+      document.getElementById('openAppSame').addEventListener('click', ()=> window.location.href = appUrl);
+      document.getElementById('openAppNew').addEventListener('click', ()=> window.open(appUrl, '_blank'));
+    })();
+  </script>
+  </footer>
+</body>
+</html>

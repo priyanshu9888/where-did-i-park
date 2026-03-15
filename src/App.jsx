@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import QRCode from 'qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MapPin, 
@@ -33,6 +34,8 @@ import {
   ShieldCheck,
   Smartphone,
   Search,
+  Download,
+  Upload,
   Car,
   Bike,
   Truck,
@@ -40,6 +43,9 @@ import {
 } from 'lucide-react';
 import { format, addMinutes, differenceInSeconds } from 'date-fns';
 import { useParking, ParkingProvider } from './ParkingContext';
+import LandingPage from './LandingPage';
+import { PrivacyPolicy, TermsOfService } from './LegalPages';
+import { ArticleSmartParking, ArticleSecurity } from './ArticlePages';
 
 // --- Components ---
 
@@ -66,22 +72,32 @@ const carIcon = L.divIcon({
   iconAnchor: [20, 20]
 });
 
+const hasValidCoordinates = (coords) => (
+  Number.isFinite(coords?.lat) && Number.isFinite(coords?.lng)
+);
+
 // Helper component to center map - only once on first location fix
-const RecenterMap = ({ coords, once = false }) => {
+const RecenterMap = ({ coords, once = false, resetKey = 0 }) => {
   const map = useMap();
   const hasRecentered = React.useRef(false);
+
   useEffect(() => {
-    if (coords && coords.lat && coords.lng) {
+    hasRecentered.current = false;
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (hasValidCoordinates(coords)) {
       if (!once || !hasRecentered.current) {
         map.setView([coords.lat, coords.lng], 16, { animate: true });
         hasRecentered.current = true;
       }
     }
-  }, [coords, map, once]);
+  }, [coords, map, once, resetKey]);
+
   return null;
 };
 
-const MapBackground = ({ nearbySpots = [], selectedNearbySpot = null }) => {
+const MapBackground = ({ nearbySpots = [], selectedNearbySpot = null, recenterKey = 0, navigationTarget = null }) => {
   const { activeSpots, location, mapTheme } = useParking();
 
   const getTileUrl = () => {
@@ -109,7 +125,7 @@ const MapBackground = ({ nearbySpots = [], selectedNearbySpot = null }) => {
           attribution={attribution}
         />
         {/* Current location — pulsing blue dot */}
-        {location && location.lat && (
+        {hasValidCoordinates(location) && (
           <>
             {/* Outer pulse ring */}
             <CircleMarker
@@ -151,10 +167,10 @@ const MapBackground = ({ nearbySpots = [], selectedNearbySpot = null }) => {
             </CircleMarker>
           </>
         )}
-        {activeSpots.filter(s => s.lat).map(spot => (
+  {activeSpots.filter(hasValidCoordinates).map(spot => (
           <React.Fragment key={spot.id}>
             <Marker position={[spot.lat, spot.lng]} icon={carIcon} />
-            {location && (
+            {hasValidCoordinates(location) && (
               <Polyline 
                 positions={[
                   [location.lat, location.lng],
@@ -205,7 +221,32 @@ const MapBackground = ({ nearbySpots = [], selectedNearbySpot = null }) => {
           );
         })}
         {selectedNearbySpot && <RecenterMap coords={{ lat: selectedNearbySpot.lat, lng: selectedNearbySpot.lng }} />}
-        {!selectedNearbySpot && location && <RecenterMap coords={location} once={true} />}
+        {!selectedNearbySpot && hasValidCoordinates(location) && (
+          <RecenterMap coords={location} once={true} resetKey={recenterKey} />
+        )}
+
+        {/* In-app navigation route */}
+        {navigationTarget && hasValidCoordinates(location) && hasValidCoordinates(navigationTarget) && (
+          <>
+            {navigationTarget.route && Array.isArray(navigationTarget.route) ? (
+              <Polyline
+                positions={navigationTarget.route}
+                color="#1976D2"
+                weight={4}
+                opacity={0.9}
+              />
+            ) : (
+              <Polyline 
+                positions={[[location.lat, location.lng], [navigationTarget.lat, navigationTarget.lng]]}
+                color="#1976D2"
+                weight={4}
+                opacity={0.8}
+              />
+            )}
+            <Marker position={[navigationTarget.lat, navigationTarget.lng]} />
+            <RecenterMap coords={navigationTarget.route && navigationTarget.route.length ? { lat: navigationTarget.route[navigationTarget.route.length-1][0], lng: navigationTarget.route[navigationTarget.route.length-1][1] } : navigationTarget} once={true} resetKey={recenterKey} />
+          </>
+        )}
       </MapContainer>
     </div>
   );
@@ -232,7 +273,7 @@ const MapThemeSwitcher = () => {
           style={{
             background: mapTheme === t.id ? '#1976D2' : 'white',
             color: mapTheme === t.id ? 'white' : '#444',
-            width: 44, height: 44, borderRadius: 12, border: 'none',
+            width: 44, height: 44, borderRadius: 12,
             cursor: 'pointer', transition: 'all 0.2s', border: mapTheme === t.id ? '2px solid white' : 'none'
           }}
           title={t.label}
@@ -262,7 +303,7 @@ const getBearing = (lat1, lon1, lat2, lon2) => {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 };
 
-const FloatingActionCard = ({ onOpenForm, onOpenQR, isUnlocked }) => {
+const FloatingActionCard = ({ onOpenForm, onOpenQR, onNavigate, isUnlocked }) => {
   const { activeSpots, location, clearSpot } = useParking();
   const [secondsRemaining, setSecondsRemaining] = useState({});
   const [metrics, setMetrics] = useState({});
@@ -363,10 +404,10 @@ const FloatingActionCard = ({ onOpenForm, onOpenQR, isUnlocked }) => {
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: '#111' }}>Where are you?</h2>
           <p style={{ color: '#666', marginBottom: 24, fontSize: 14 }}>Pin your location to find it later instantly.</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <button className="btn-primary" style={{ padding: '14px' }} onClick={onOpenForm}>
-               <MapPin size={18} />
-               Park Car
-            </button>
+        <button className="btn-primary" style={{ padding: '14px' }} onClick={onOpenForm}>
+          <MapPin size={18} />
+          Park Here
+        </button>
             <button className="btn-primary" style={{ background: '#f5f5f5', color: '#111', padding: '14px' }} onClick={onOpenForm}>
                <Star size={18} />
                Pin Spot
@@ -434,7 +475,7 @@ const FloatingActionCard = ({ onOpenForm, onOpenQR, isUnlocked }) => {
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-primary" style={{ flex: 1, padding: '8px', fontSize: 12 }} onClick={() => {
-              window.open(`https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`, '_blank');
+              if (typeof onNavigate === 'function') onNavigate({ id: spot.id, lat: spot.lat, lng: spot.lng, note: spot.note, category: spot.category, timestamp: spot.timestamp });
             }}>
               <Navigation size={14} /> Navigate
             </button>
@@ -450,7 +491,7 @@ const FloatingActionCard = ({ onOpenForm, onOpenQR, isUnlocked }) => {
             <button className="btn-primary" style={{ background: '#f5f5f5', color: '#111', padding: '0 10px' }} onClick={() => handleShare(spot)}>
               <Share2 size={14} />
             </button>
-            <button className="btn-primary" style={{ background: '#f5f5f5', color: '#111', padding: '0 10px' }} onClick={() => onOpenQR(spot)}>
+            <button className="btn-primary" style={{ background: '#f5f5f5', color: '#111', padding: '0 10px' }} onClick={() => onOpenQR({ id: spot.id, lat: spot.lat, lng: spot.lng, note: spot.note, category: spot.category, timestamp: spot.timestamp })}>
               <QrCode size={14} />
             </button>
             <button className="btn-primary" style={{ background: '#f5f5f5', color: '#d32f2f', padding: '0 10px' }} onClick={() => clearSpot(spot.id)}>
@@ -495,7 +536,7 @@ const fetchNearbyParking = async (lat, lng, vehicleType) => {
   })).filter(s => s.lat && s.lng);
 };
 
-const NearbyParkingPanel = ({ isOpen, onClose, onSpotsChange, onSelectSpot, selectedSpot }) => {
+const NearbyParkingPanel = ({ isOpen, onClose, onSpotsChange, onSelectSpot, selectedSpot, onNavigate }) => {
   const { location } = useParking();
   const [vehicleType, setVehicleType] = useState('car');
   const [spots, setSpots] = useState([]);
@@ -669,7 +710,7 @@ const NearbyParkingPanel = ({ isOpen, onClose, onSpotsChange, onSelectSpot, sele
 
                     {/* Navigate button */}
                     <button
-                      onClick={(e) => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`, '_blank'); }}
+                      onClick={(e) => { e.stopPropagation(); if (typeof onNavigate === 'function') onNavigate({ id: spot.id, lat: spot.lat, lng: spot.lng, note: spot.note, category: spot.vehicleType || spot.category }); }}
                       style={{
                         background: color, color: 'white', border: 'none',
                         borderRadius: 10, padding: '8px 10px', cursor: 'pointer',
@@ -697,7 +738,6 @@ const ActionForm = ({ isOpen, onClose, initialCategory = 'parking' }) => {
   const [photo, setPhoto] = useState(null);
   const [audio, setAudio] = useState(null);
   const [isSecret, setIsSecret] = useState(false);
-  const [parkingDetails, setParkingDetails] = useState({ floor: '', zone: '', pillar: '' });
 
   // Voice Memo State
   const [isRecording, setIsRecording] = useState(false);
@@ -712,7 +752,6 @@ const ActionForm = ({ isOpen, onClose, initialCategory = 'parking' }) => {
       setAudio(null);
       setTimer(null);
       setIsSecret(false);
-      setParkingDetails({ floor: '', zone: '', pillar: '' });
       setRecordingTime(0);
       setIsRecording(false);
     }
@@ -790,8 +829,7 @@ const ActionForm = ({ isOpen, onClose, initialCategory = 'parking' }) => {
       photo, 
       audio,
       category,
-      isSecret,
-      parkingDetails: category === 'parking' ? parkingDetails : { floor: '', zone: '', pillar: '' }
+      isSecret
     });
     onClose();
   };
@@ -914,38 +952,7 @@ const ActionForm = ({ isOpen, onClose, initialCategory = 'parking' }) => {
             />
           </div>
 
-          {/* Advanced Parking UI */}
-          {category === 'parking' && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: '#666' }}>Floor</label>
-                <input 
-                  placeholder="B2"
-                  value={parkingDetails.floor}
-                  onChange={(e) => setParkingDetails({...parkingDetails, floor: e.target.value})}
-                  style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1px solid #eee', background: '#fcfcfc', outline: 'none' }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: '#666' }}>Zone</label>
-                <input 
-                  placeholder="Zone C"
-                  value={parkingDetails.zone}
-                  onChange={(e) => setParkingDetails({ ...parkingDetails, zone: e.target.value })}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid #eee', fontSize: 14 }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: '#666' }}>Zone/Pillar</label>
-                <input 
-                  placeholder="A7"
-                  value={parkingDetails.pillar}
-                  onChange={(e) => setParkingDetails({...parkingDetails, pillar: e.target.value})}
-                  style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1px solid #eee', background: '#fcfcfc', outline: 'none' }}
-                />
-              </div>
-            </div>
-          )}
+          {/* floor/zone/pillar inputs removed per user request */}
 
           {/* Incognito Toggle */}
           <div 
@@ -1033,9 +1040,46 @@ const ActionForm = ({ isOpen, onClose, initialCategory = 'parking' }) => {
 };
 
 const QRCodeModal = ({ isOpen, onClose, data }) => {
+  const [imgError, setImgError] = useState(false);
+  const [dataUrl, setDataUrl] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   if (!isOpen || !data) return null;
-  const qrUrl = `https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=${encodeURIComponent(JSON.stringify(data))}`;
-  
+
+  // Only include the minimal fields needed for syncing so the QR payload stays small.
+  const safePayload = typeof data === 'object' && data !== null
+    ? {
+        id: data.id,
+        lat: data.lat,
+        lng: data.lng,
+        note: data.note,
+        category: data.category,
+        timestamp: data.timestamp
+      }
+    : data;
+
+  useEffect(() => {
+    let mounted = true;
+    setImgError(false);
+    setErrorMessage(null);
+    setDataUrl(null);
+    const str = JSON.stringify(safePayload);
+    console.log('QRCodeModal: generating QR for payload', safePayload);
+    // Generate QR locally to avoid external image/network problems and URL length limits
+    QRCode.toDataURL(str, { errorCorrectionLevel: 'H', width: 400 })
+      .then(url => {
+        console.log('QRCodeModal: generation success');
+        if (mounted) setDataUrl(url);
+      })
+      .catch(err => {
+        console.error('QR generation failed', err);
+        if (mounted) {
+          setImgError(true);
+          setErrorMessage(err?.message || String(err));
+        }
+      });
+    return () => { mounted = false; };
+  }, [data]);
+
   return (
     <AnimatePresence>
       <motion.div 
@@ -1053,9 +1097,55 @@ const QRCodeModal = ({ isOpen, onClose, data }) => {
             <X size={20} onClick={onClose} style={{ cursor: 'pointer' }} />
           </div>
           <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 16, marginBottom: 20 }}>
-             <img src={qrUrl} alt="QR Code" style={{ width: '100%', height: 'auto', borderRadius: 8 }} />
+            {!imgError && dataUrl ? (
+              <img src={dataUrl} alt="QR Code" style={{ width: '100%', height: 'auto', borderRadius: 8 }} onError={() => setImgError(true)} />
+            ) : imgError ? (
+              <div style={{ padding: 12 }}>
+                <p style={{ color: '#666', fontSize: 13 }}>QR image failed to generate. You can copy the sync payload below and paste it on the other device:</p>
+                <pre style={{ textAlign: 'left', maxHeight: 160, overflow: 'auto', background: '#fff', padding: 8, borderRadius: 8 }}>{JSON.stringify(safePayload)}</pre>
+                {errorMessage && <p style={{ color: '#d32f2f', fontSize: 12, marginTop: 8 }}>Error: {errorMessage}</p>}
+              </div>
+            ) : (
+              <div style={{ padding: 12 }}>
+                <p style={{ color: '#666', fontSize: 13 }}>Generating QR…</p>
+                <details style={{ marginTop: 8, textAlign: 'left' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 12 }}>Show payload (for debug)</summary>
+                  <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#fff', padding: 8, borderRadius: 8 }}>{JSON.stringify(safePayload, null, 2)}</pre>
+                </details>
+              </div>
+            )}
           </div>
-          <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>Scan this code on another device to instantly sync this pin.</p>
+          <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Scan this code on another device to instantly sync this pin.</p>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                try {
+                  navigator.clipboard.writeText(JSON.stringify(safePayload));
+                  alert('Payload copied to clipboard');
+                } catch (e) {
+                  // fallback
+                  const ta = document.createElement('textarea');
+                  ta.value = JSON.stringify(safePayload);
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  ta.remove();
+                  alert('Payload copied to clipboard');
+                }
+              }}
+              style={{ flex: 1 }}
+            >
+              Copy payload
+            </button>
+            {dataUrl && (
+              <a href={dataUrl} download={`where-did-i-park-${safePayload.id || 'pin'}.png`} style={{ flex: 1 }}>
+                <button className="btn-primary" style={{ width: '100%' }}>Download QR</button>
+              </a>
+            )}
+          </div>
+
           <button className="btn-primary" onClick={onClose} style={{ width: '100%' }}>Done</button>
         </motion.div>
       </motion.div>
@@ -1173,7 +1263,54 @@ function AppContent() {
   const [isNearbyOpen, setIsNearbyOpen] = useState(false);
   const [nearbySpots, setNearbySpots] = useState([]);
   const [selectedNearbySpot, setSelectedNearbySpot] = useState(null);
-  const { location, locationStatus, error, saveSpot } = useParking();
+  const [recenterKey, setRecenterKey] = useState(0);
+  const [navigationTarget, setNavigationTarget] = useState(null);
+  const { 
+    locationStatus, 
+    error, 
+    refreshLocation,
+    location,
+    activeSpots
+  } = useParking();
+  const fileInputRef = React.useRef(null);
+
+  const exportSpots = () => {
+    try {
+      const data = JSON.stringify(activeSpots || []);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `where-did-i-park-spots-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed', err);
+      alert('Export failed. See console for details.');
+    }
+  };
+
+  const importSpots = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!Array.isArray(parsed)) throw new Error('Invalid format: expected an array of spots');
+        // Basic validation: ensure each item has lat and lng
+        const valid = parsed.filter(s => s && typeof s.lat === 'number' && typeof s.lng === 'number');
+        localStorage.setItem('activeSpots', JSON.stringify(valid));
+        alert(`Imported ${valid.length} spots. Reloading to apply.`);
+        window.location.reload();
+      } catch (err) {
+        console.error('Import failed', err);
+        alert('Import failed: ' + (err.message || String(err)));
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleSpotsChange = useCallback((spots) => {
     setNearbySpots(spots);
@@ -1185,9 +1322,62 @@ function AppContent() {
     setIsFormOpen(true);
   };
 
+  const handleNavigate = async (target) => {
+    // Accept either {lat,lng} or spot object
+    if (!target) return setNavigationTarget(null);
+    if (!(typeof target.lat === 'number' && typeof target.lng === 'number')) return;
+
+    // Set a loading navigation target so UI updates immediately
+    setNavigationTarget({ lat: target.lat, lng: target.lng, id: target.id, note: target.note, category: target.category, loading: true });
+    setSelectedNearbySpot(null);
+    setRecenterKey(prev => prev + 1);
+
+    // If we have a current location, request a route from OSRM demo server
+    if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
+      try {
+        const src = `${location.lng},${location.lat}`;
+        const dst = `${target.lng},${target.lat}`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${src};${dst}?overview=full&geometries=geojson&annotations=distance,duration`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data && data.routes && data.routes.length > 0) {
+          const r = data.routes[0];
+          // r.geometry.coordinates is [[lon,lat],...]
+          const routeLatLng = r.geometry.coordinates.map(c => [c[1], c[0]]);
+          setNavigationTarget({
+            lat: target.lat,
+            lng: target.lng,
+            id: target.id,
+            note: target.note,
+            category: target.category,
+            loading: false,
+            route: routeLatLng,
+            distance: r.distance, // meters
+            duration: r.duration // seconds
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('OSRM route fetch failed', err);
+      }
+    }
+
+    // Fallback: no route geometry available
+    setNavigationTarget({ lat: target.lat, lng: target.lng, id: target.id, note: target.note, category: target.category, loading: false, route: null });
+  };
+
+  const showLocationError = typeof error === 'string' && error.length > 0;
+  const showPermissionError = typeof error === 'string' && /permission|denied/i.test(error);
+  const showSecureContextError = typeof error === 'string' && /https|localhost|secure/i.test(error);
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000', overflow: 'hidden' }}>
-      <MapBackground nearbySpots={nearbySpots} selectedNearbySpot={selectedNearbySpot} />
+    <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}>
+      <MapBackground
+        nearbySpots={nearbySpots}
+        selectedNearbySpot={selectedNearbySpot}
+        recenterKey={recenterKey}
+        navigationTarget={navigationTarget}
+      />
       <MapThemeSwitcher />
       <BatteryReminder onOpenForm={() => openFormWithCategory('parking')} />
       
@@ -1240,6 +1430,21 @@ function AppContent() {
           >
             <History size={18} color="#1976D2" />
           </button>
+          <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => importSpots(e.target.files[0])} />
+          <button
+            onClick={() => exportSpots()}
+            style={{ background: 'white', width: 42, height: 42, borderRadius: '50%', border: 'none', marginLeft: 8, boxShadow: 'var(--shadow-premium)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            title="Export pins"
+          >
+            <Download size={18} color="#1976D2" />
+          </button>
+          <button
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            style={{ background: 'white', width: 42, height: 42, borderRadius: '50%', border: 'none', marginLeft: 8, boxShadow: 'var(--shadow-premium)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            title="Import pins"
+          >
+            <Upload size={18} color="#1976D2" />
+          </button>
         </div>
 
         {/* Quick Launch Row */}
@@ -1251,6 +1456,22 @@ function AppContent() {
             padding: '4px 2px', pointerEvents: 'auto' 
           }}
         >
+          {/* Find Nearby Parking button - kept first per request */}
+          <button
+            onClick={() => setIsNearbyOpen(true)}
+            style={{
+              background: isNearbyOpen ? '#7B1FA2' : 'white',
+              padding: '8px 14px', borderRadius: 12,
+              border: 'none', boxShadow: isNearbyOpen ? '0 4px 16px rgba(123,31,162,0.4)' : '0 4px 12px rgba(0,0,0,0.08)',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontWeight: 700, fontSize: 12, color: isNearbyOpen ? 'white' : '#444',
+              cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s'
+            }}
+          >
+            <Search size={15} style={{ color: isNearbyOpen ? 'white' : '#7B1FA2' }} />
+            Find Parking
+          </button>
+
           {[
             { id: 'parking', icon: <MapIcon size={16} />, color: '#4CAF50' },
             { id: 'meeting', icon: <Users size={16} />, color: '#1976D2' },
@@ -1272,60 +1493,119 @@ function AppContent() {
               {item.id.charAt(0).toUpperCase() + item.id.slice(1)}
             </button>
           ))}
-          {/* Find Nearby Parking button */}
-          <button
-            onClick={() => setIsNearbyOpen(true)}
-            style={{
-              background: isNearbyOpen ? '#7B1FA2' : 'white',
-              padding: '8px 14px', borderRadius: 12,
-              border: 'none', boxShadow: isNearbyOpen ? '0 4px 16px rgba(123,31,162,0.4)' : '0 4px 12px rgba(0,0,0,0.08)',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontWeight: 700, fontSize: 12, color: isNearbyOpen ? 'white' : '#444',
-              cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s'
-            }}
-          >
-            <Search size={15} style={{ color: isNearbyOpen ? 'white' : '#7B1FA2' }} />
-            Find Parking
-          </button>
         </motion.div>
       </div>
 
       <FloatingActionCard 
         onOpenForm={() => openFormWithCategory('parking')} 
         onOpenQR={setQrData} 
+        onNavigate={handleNavigate}
         isUnlocked={isUnlocked}
       />
-      
+
       <QRCodeModal isOpen={!!qrData} onClose={() => setQrData(null)} data={qrData} />
+
+      {/* In-app route control */}
+      {navigationTarget && (
+        <div style={{ position: 'absolute', bottom: 140, left: 20, right: 20, zIndex: 120, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ background: 'white', padding: 12, borderRadius: 12, display: 'flex', gap: 8, alignItems: 'center', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', maxWidth: 540, width: '100%', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Navigation size={18} color="#1976D2" />
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{navigationTarget.note || (navigationTarget.category ? navigationTarget.category : 'Destination')}</div>
+            </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {navigationTarget.distance != null && (
+                      <div style={{ fontSize: 13, color: '#444', marginRight: 8 }}>
+                        {(navigationTarget.distance >= 1000) ? `${(navigationTarget.distance/1000).toFixed(1)} km` : `${Math.round(navigationTarget.distance)} m`}
+                        {navigationTarget.duration != null && (` • ${Math.ceil(navigationTarget.duration/60)} min`)}
+                      </div>
+                    )}
+                    <button
+                      className="btn-primary"
+                      onClick={() => {
+                        // Open external Google Maps if user wants
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${navigationTarget.lat},${navigationTarget.lng}`, '_blank');
+                      }}
+                    >Open in Google Maps</button>
+                    <button className="btn-primary" style={{ background: '#f5f5f5', color: '#111' }} onClick={() => setNavigationTarget(null)}>Clear</button>
+                  </div>
+          </div>
+        </div>
+      )}
       
       {/* Location Error Feedback */}
-      <AnimatePresence>
-        {error && (
+        {showLocationError && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             style={{
               position: 'absolute', top: 120, left: 20, right: 20,
-              background: '#ffefef', color: '#d32f2f', padding: '12px 20px',
-              borderRadius: 16, fontSize: 13, fontWeight: 600,
-              boxShadow: '0 4px 15px rgba(211, 47, 47, 0.15)',
-              zIndex: 100, display: 'flex', alignItems: 'center', gap: 10
+              background: '#fff9f9', color: '#d32f2f', padding: '20px',
+              borderRadius: 24, fontSize: 13, fontWeight: 600,
+              boxShadow: '0 8px 30px rgba(211, 47, 47, 0.15)',
+              zIndex: 100, display: 'flex', flexDirection: 'column', gap: 14,
+              border: '2px solid #fee2e2'
             }}
           >
-            <X size={16} />
-            <span>GPS Error: {error}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ background: '#fee2e2', padding: 8, borderRadius: '50%' }}>
+                <Navigation size={20} color="#d32f2f" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
+                  {showSecureContextError ? 'Open Securely for Location' : 'Location Access Required'}
+                </p>
+                <p style={{ color: '#666', fontWeight: 500, lineHeight: 1.4 }}>{error}</p>
+                <div style={{ marginTop: 12, background: '#f8f9fa', padding: 12, borderRadius: 12, color: '#444', fontSize: 11 }}>
+                  <p style={{ fontWeight: 700, marginBottom: 4 }}>How to fix:</p>
+                  <ul style={{ paddingLeft: 16, margin: 0 }}>
+                    {showSecureContextError ? (
+                      <>
+                        <li>Open the app from <strong>https://...</strong> or <strong>localhost</strong></li>
+                        <li>Avoid plain <strong>http://</strong> addresses for location access</li>
+                        <li>If testing on a phone, use a secure deployed URL instead of a local network URL</li>
+                      </>
+                    ) : showPermissionError ? (
+                      <>
+                        <li>Go to your phone's <strong>Settings</strong></li>
+                        <li>Find <strong>Privacy → Location Services</strong></li>
+                        <li>Ensure <strong>Safari</strong> (or your browser) is set to <strong>"While Using the App"</strong></li>
+                        <li>Turn ON <strong>Precise Location</strong></li>
+                      </>
+                    ) : (
+                      <>
+                        <li>Wait a few seconds in an open area</li>
+                        <li>Make sure location services are turned on for your device</li>
+                        <li>Tap the location button to try again</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              style={{ 
+                background: '#d32f2f', color: 'white', border: 'none', 
+                padding: '12px 20px', borderRadius: 14, fontSize: 14, 
+                fontWeight: 800, cursor: 'pointer', width: '100%',
+                boxShadow: '0 4px 12px rgba(211, 47, 47, 0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+              }}
+            >
+              <Zap size={16} fill="white" />
+              Try Force Refresh
+            </button>
           </motion.div>
         )}
-      </AnimatePresence>
 
       {/* Locate Me Button */}
       <button 
         onClick={() => {
-          if (location) {
-            const map = document.querySelector('.leaflet-container')?._leaflet_map;
-            if (map) map.setView([location.lat, location.lng], 16, { animate: true });
-          }
+          refreshLocation();
+          setSelectedNearbySpot(null);
+          setRecenterKey(prev => prev + 1);
         }}
         style={{ 
           position: 'absolute', bottom: 220, right: 20,
@@ -1350,6 +1630,7 @@ function AppContent() {
         onClose={() => setIsNearbyOpen(false)}
         onSpotsChange={handleSpotsChange}
         onSelectSpot={(spot) => setSelectedNearbySpot(spot)}
+        onNavigate={handleNavigate}
         selectedSpot={selectedNearbySpot}
       />
       
@@ -1365,9 +1646,26 @@ function AppContent() {
 }
 
 function App() {
+  const [view, setView] = useState('landing'); // 'landing', 'app', 'privacy', 'terms'
+
+  useEffect(() => {
+    if (view === 'app') {
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+    } else {
+      document.body.style.overflow = 'auto';
+      document.body.style.height = 'auto';
+    }
+  }, [view]);
+
   return (
     <ParkingProvider>
-      <AppContent />
+      {view === 'landing' && <LandingPage onLaunch={() => setView('app')} onNavigate={setView} />}
+      {view === 'app' && <AppContent />}
+      {view === 'privacy' && <PrivacyPolicy onBack={() => setView('landing')} />}
+      {view === 'terms' && <TermsOfService onBack={() => setView('landing')} />}
+      {view === 'article-parking' && <ArticleSmartParking onBack={() => setView('landing')} />}
+      {view === 'article-security' && <ArticleSecurity onBack={() => setView('landing')} />}
     </ParkingProvider>
   );
 }

@@ -1,0 +1,46 @@
+:root{
+  --bg:#0f1720; --card:#ffffff; --muted:#6b7280; --accent:#1976D2; --accent-dark:#155aab;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#0b1220;margin:0;background:linear-gradient(180deg,#f7fbff,white)}
+.container{max-width:1100px;margin:0 auto;padding:28px}
+.nav{background:white;box-shadow:0 6px 18px rgba(10,20,40,0.06)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:800;color:#111;text-decoration:none}
+nav a{margin-left:18px;color:#444;text-decoration:none}
+.btn{display:inline-block;padding:10px 14px;border-radius:10px;border:none;cursor:pointer;text-decoration:none}
+.btn.primary{background:var(--accent);color:white}
+.btn.ghost{background:transparent;border:1px solid #eee;color:#111}
+.btn.large{padding:14px 20px;font-size:16px}
+.header-cta{display:flex;gap:12px}
+.hero{padding:60px 0}
+.hero-inner{display:flex;gap:40px;align-items:center}
+.hero-copy{flex:1}
+.hero-copy h1{font-size:36px;margin:0 0 12px}
+.lead{color:var(--muted);margin:0 0 18px}
+.cta-row{margin:18px 0}
+.hero-features{display:flex;gap:12px;padding:0;margin:12px 0 0;list-style:none}
+.hero-features li{background:#f8fafc;padding:8px 12px;border-radius:8px;color:#34495e;font-weight:600}
+.hero-visual{width:340px}
+.mock-phone{background:#fff;border-radius:24px;box-shadow:0 12px 40px rgba(10,20,40,0.08);overflow:hidden;border:1px solid #eef4fb}
+.mock-header{padding:12px 16px;border-bottom:1px solid #f2f6fb;font-weight:700}
+.mock-body{padding:18px}
+.map-placeholder{height:220px;border-radius:12px;background:linear-gradient(180deg,#e6f0ff,#f8fbff);display:flex;align-items:center;justify-content:center;color:#7b8aa3}
+.mock-actions{display:flex;gap:8px;margin-top:12px}
+.features{padding:60px 0}
+.feature-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.feature-grid article{background:#fff;padding:18px;border-radius:12px;box-shadow:0 10px 30px rgba(10,20,40,0.04)}
+.testimonials{padding:40px 0;background:linear-gradient(180deg,#f9fbff,white)}
+.test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.test-grid blockquote{background:#fff;padding:18px;border-radius:12px}
+.cta-slab{padding:40px 0;background:#1976D2;color:white;border-radius:8px;margin:32px 0}
+.site-footer{background:white;padding:18px 0;border-top:1px solid #f2f4f7}
+.footer-inner{display:flex;justify-content:space-between;align-items:center}
+.footer-links a{margin-left:12px;color:#444}
+
+@media (max-width:900px){
+  .hero-inner{flex-direction:column}
+  .hero-visual{width:100%}
+  .feature-grid{grid-template-columns:1fr}
+  .test-grid{grid-template-columns:1fr}
+}

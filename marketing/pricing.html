@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pricing — Where Did I Park</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">Where Did I Park</a>
+      <nav>
+        <a href="/marketing/index.html">Home</a>
+        <a href="/marketing/pricing.html">Pricing</a>
+        <a href="/marketing/about.html">About</a>
+        <a class="btn open-app" href="/">Open App</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="container" style="padding:60px 28px">
+      <h1>Simple pricing for everyone</h1>
+      <p class="lead">Start free. Optional premium features unlock cloud backups and multi-device sync.</p>
+
+      <div class="feature-grid" style="margin-top:24px;grid-template-columns:repeat(3,1fr)">
+        <div style="background:#fff;padding:18px;border-radius:12px;text-align:center">
+          <h3>Free</h3>
+          <div style="font-size:28px;font-weight:800;margin:8px 0">$0</div>
+          <p style="color:#666">Core features: save pins, in-app routing, QR sync, export/import</p>
+          <p><a class="btn primary" href="/">Open App</a></p>
+        </div>
+        <div style="background:#fff;padding:18px;border-radius:12px;text-align:center;box-shadow:0 10px 30px rgba(10,20,40,0.06)">
+          <h3>Pro</h3>
+          <div style="font-size:28px;font-weight:800;margin:8px 0">$2.99/mo</div>
+          <p style="color:#666">Cloud backup, real-time sync, priority support.</p>
+          <p><a class="btn primary" href="/">Try Pro</a></p>
+        </div>
+        <div style="background:#fff;padding:18px;border-radius:12px;text-align:center">
+          <h3>Teams</h3>
+          <div style="font-size:28px;font-weight:800;margin:8px 0">Contact us</div>
+          <p style="color:#666">Share pins across members, admin controls, team backups.</p>
+          <p><a class="btn primary" href="mailto:hello@where-did-i-park.example">Contact Sales</a></p>
+        </div>
+      </div>
+
+      <section style="margin-top:36px">
+        <h2>What Pro adds</h2>
+        <ul>
+          <li>Automatic cloud backups</li>
+          <li>Real-time pin sync across devices</li>
+          <li>Longer history retention</li>
+        </ul>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>© {new Date().getFullYear()} Where Did I Park</div>
+      <div class="footer-links">
+        <a href="/marketing/index.html">Home</a>
+        <a href="/marketing/about.html">About</a>
+      </div>
+    </div>
+  <script>
+    (function(){
+      const appUrl = 'http://127.0.0.1:5173/';
+      document.querySelectorAll('a.open-app').forEach(a=>a.href = appUrl);
+      // add quick buttons
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.right = '16px';
+      container.style.bottom = '16px';
+      container.style.zIndex = '9999';
+      container.innerHTML = '<a class="btn primary" id="openAppSame">Open App (same tab)</a> <a class="btn ghost" id="openAppNew">Open App (new tab)</a>';
+      document.body.appendChild(container);
+      document.getElementById('openAppSame').addEventListener('click', ()=> window.location.href = appUrl);
+      document.getElementById('openAppNew').addEventListener('click', ()=> window.open(appUrl, '_blank'));
+    })();
+  </script>
+  </footer>
+</body>
+</html>

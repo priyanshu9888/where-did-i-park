@@ -1,27 +1,62 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import {
-  Square,
-  Cloud,
-  Sun,
-  Fuel,
-  Utensils,
-  Landmark
-} from 'lucide-react';
-import { addMinutes, differenceInSeconds } from 'date-fns';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 
 const ParkingContext = createContext();
+
+const FAST_FIX_MAX_AGE = 5 * 60 * 1000;
+const FAST_FIX_TIMEOUT = 5000;
+const HIGH_ACCURACY_TIMEOUT = 12000;
+const STANDARD_TIMEOUT = 12000;
+
+const getLocationErrorMessage = (err) => {
+  let msg = 'Unable to determine your location right now.';
+  if (err?.code === 1) {
+    msg = 'Location permission denied. Enable it in your browser or system settings and try again.';
+  } else if (err?.code === 2) {
+    msg = 'Position unavailable. Move to an open area or make sure location services are enabled.';
+  } else if (err?.code === 3) {
+    msg = 'Location request timed out. Trying again can help once your device has a better signal.';
+  }
+  return err?.code ? `${msg} (Code ${err.code})` : msg;
+};
 
 export const useParking = () => useContext(ParkingContext);
 
 export const ParkingProvider = ({ children }) => {
   const [activeSpots, setActiveSpots] = useState(() => {
     const saved = localStorage.getItem('activeSpots');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      // Remove any parkingDetails fields saved previously
+      if (Array.isArray(parsed)) {
+        return parsed.map(s => {
+          const { parkingDetails, ...rest } = s || {};
+          return rest;
+        });
+      }
+      return [];
+    } catch (err) {
+      console.error('Failed to parse saved activeSpots', err);
+      return [];
+    }
   });
   
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem('parkingHistory');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.map(s => {
+          const { parkingDetails, ...rest } = s || {};
+          return rest;
+        });
+      }
+      return [];
+    } catch (err) {
+      console.error('Failed to parse saved parkingHistory', err);
+      return [];
+    }
   });
 
   const [location, setLocation] = useState(null);
@@ -29,18 +64,41 @@ export const ParkingProvider = ({ children }) => {
   const [mapTheme, setMapTheme] = useState('standard');
   const [weather, setWeather] = useState(null);
   const [batteryStatus, setBatteryStatus] = useState({ level: 1, charging: false });
+  const watchIdRef = useRef(null);
+  const locationRef = useRef(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
+
+  useEffect(() => {
+    let isMounted = true;
+    let batteryManager = null;
+    let updateBattery = null;
+
     if ('getBattery' in navigator) {
       navigator.getBattery().then(battery => {
-        const updateBattery = () => {
+        if (!isMounted) return;
+        batteryManager = battery;
+
+        updateBattery = () => {
           setBatteryStatus({ level: battery.level, charging: battery.charging });
         };
+
         updateBattery();
         battery.addEventListener('levelchange', updateBattery);
         battery.addEventListener('chargingchange', updateBattery);
       });
     }
+
+    return () => {
+      isMounted = false;
+      if (batteryManager && updateBattery) {
+        batteryManager.removeEventListener('levelchange', updateBattery);
+        batteryManager.removeEventListener('chargingchange', updateBattery);
+      }
+    };
   }, []);
 
   const fetchWeather = async (lat, lng) => {
@@ -64,44 +122,134 @@ export const ParkingProvider = ({ children }) => {
 
   const [locationStatus, setLocationStatus] = useState('searching'); // 'searching' | 'ok' | 'error'
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      setLocationStatus('error');
-      return;
+  const clearLocationWatch = useCallback(() => {
+    if (watchIdRef.current != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
-
-    const options = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 20000
-    };
-
-    const onSuccess = (pos) => {
-      setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      setError(null);
-      setLocationStatus('ok');
-    };
-
-    const onError = (err) => {
-      console.error('Location error:', err.code, err.message);
-      let msg = 'Unknown GPS error';
-      if (err.code === 1) msg = 'Location access denied. Please allow in Safari settings.';
-      else if (err.code === 2) msg = 'GPS hardware unavailable or macOS system location off.';
-      else if (err.code === 3) msg = 'GPS signal too weak or timed out. Try moving near a window.';
-      
-      setError(msg);
-      setLocationStatus('error');
-    };
-
-    // Get a fast first fix immediately
-    navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
-
-    // Then keep watching for updates
-    const watchId = navigator.geolocation.watchPosition(onSuccess, onError, options);
-
-    return () => navigator.geolocation.clearWatch(watchId);
   }, []);
+
+  const requestPosition = useCallback((options) => new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  }), []);
+
+  const applyLocationSuccess = useCallback((pos) => {
+    setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    setError(null);
+    setLocationStatus('ok');
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const startLocationServices = async () => {
+      clearLocationWatch();
+
+      if (!navigator.geolocation) {
+        setError('Geolocation is not supported in this browser.');
+        setLocationStatus('error');
+        return;
+      }
+
+      if (!window.isSecureContext) {
+        setError('Location access requires HTTPS or localhost. Open the app securely and try again.');
+        setLocationStatus('error');
+        return;
+      }
+
+      setError(null);
+      setLocationStatus('searching');
+
+      const onSuccess = (pos) => {
+        if (cancelled) return;
+        applyLocationSuccess(pos);
+      };
+
+      const onError = async (err) => {
+        if (cancelled) return;
+
+        if (err?.code === 1) {
+          setError(getLocationErrorMessage(err));
+          setLocationStatus('error');
+          return;
+        }
+
+        try {
+          const fallbackFix = await requestPosition({
+            enableHighAccuracy: false,
+            maximumAge: Infinity,
+            timeout: STANDARD_TIMEOUT
+          });
+
+          if (!cancelled) {
+            applyLocationSuccess(fallbackFix);
+          }
+          return;
+        } catch {
+          if (!locationRef.current) {
+            setError(getLocationErrorMessage(err));
+            setLocationStatus('error');
+          }
+        }
+      };
+
+      watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: HIGH_ACCURACY_TIMEOUT
+      });
+
+      try {
+        const initialPosition = await requestPosition({
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: HIGH_ACCURACY_TIMEOUT
+        });
+
+        if (!cancelled) {
+          applyLocationSuccess(initialPosition);
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        if (err?.code === 1) {
+          setError(getLocationErrorMessage(err));
+          setLocationStatus('error');
+          return;
+        }
+
+        try {
+          const cachedPosition = await requestPosition({
+            enableHighAccuracy: false,
+            maximumAge: FAST_FIX_MAX_AGE,
+            timeout: FAST_FIX_TIMEOUT
+          });
+
+          if (!cancelled) {
+            applyLocationSuccess(cachedPosition);
+          }
+        } catch (fallbackErr) {
+          if (!locationRef.current) {
+            setError(getLocationErrorMessage(fallbackErr?.code === 1 ? fallbackErr : err));
+            setLocationStatus('error');
+          }
+        }
+      }
+    };
+
+    startLocationServices();
+
+    return () => {
+      cancelled = true;
+      clearLocationWatch();
+    };
+  }, [applyLocationSuccess, clearLocationWatch, requestPosition, retryKey]);
+
+  const refreshLocation = () => {
+    setError(null);
+    setLocationStatus('searching');
+    setRetryKey(prev => prev + 1);
+  };
 
   const saveSpot = (details) => {
     if (!location) return;
@@ -116,7 +264,7 @@ export const ParkingProvider = ({ children }) => {
       audio: details.audio || null,
       category: details.category || 'parking',
       isSecret: details.isSecret || false,
-      parkingDetails: details.parkingDetails || { floor: '', zone: '', pillar: '' }
+      // parkingDetails removed — not storing floor/zone/pillar per user request
     };
     const updatedSpots = [...activeSpots, newSpot];
     setActiveSpots(updatedSpots);
@@ -153,7 +301,8 @@ export const ParkingProvider = ({ children }) => {
       activeSpots, activeSpot: activeSpots[0] || null,
       history, location, locationStatus, error, 
       mapTheme, setMapTheme, batteryStatus, weather,
-      saveSpot, updateSpot, clearSpot, clearAllSpots
+      saveSpot, updateSpot, clearSpot, clearAllSpots,
+      refreshLocation
     }}>
       {children}
     </ParkingContext.Provider>

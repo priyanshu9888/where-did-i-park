@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Where Did I Park — Never Lose Your Car</title>
+  <link rel="stylesheet" href="./styles.css">
+  <meta name="description" content="Save your parking spot, sync across devices, and navigate back — fast, private and offline-capable.">
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">Where Did I Park</a>
+      <nav>
+        <a href="/marketing/index.html">Home</a>
+        <a href="/marketing/pricing.html">Pricing</a>
+        <a href="/marketing/about.html">About</a>
+        <a class="btn" href="/">Open App</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <h1>Park. Remember. Return — effortlessly.</h1>
+          <p class="lead">Pin your location, generate a quick-sync QR, and get back to your car with turn-by-turn guidance — all inside a tiny, privacy-first web app.</p>
+          <p class="cta-row">
+              <a class="btn primary open-app" href="/">Open the App</a>
+              <a class="btn ghost" href="/marketing/pricing.html">See Pricing</a>
+            </p>
+          <ul class="hero-features">
+            <li>One-tap save & recall</li>
+            <li>In-app routing (OSRM) & ETA</li>
+            <li>QR sync between devices (no account needed)</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual">
+          <div class="mock-phone">
+            <div class="mock-header">Where are you?</div>
+            <div class="mock-body">
+              <div class="map-placeholder">Interactive Map Preview</div>
+              <div class="mock-actions">
+                <button class="btn">Park Here</button>
+                <button class="btn ghost">Find Parking</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="container">
+        <h2>Designed for quick trips — built for privacy</h2>
+        <div class="feature-grid">
+          <article>
+            <h3>Fast & Simple</h3>
+            <p>Save a pin with one tap. The app centers the map, stores the pin locally, and lets you add a short note or voice memo.</p>
+          </article>
+          <article>
+            <h3>Sync Instantly</h3>
+            <p>Use QR codes to transfer a pin to another device without signing in. We generate QR locally so it works offline.</p>
+          </article>
+          <article>
+            <h3>In-app Navigation</h3>
+            <p>See a road-following route and ETA right inside the app. Choose to open Google Maps if you want turn-by-turn directions.</p>
+          </article>
+          <article>
+            <h3>Export & Backup</h3>
+            <p>Download your pins as JSON. Optional cloud backups or real-time sync can be enabled later.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="testimonials">
+      <div class="container">
+        <h2>What people say</h2>
+        <div class="test-grid">
+          <blockquote>
+            "Saved me hours looking for my car after a concert. Simple and reliable."
+            <cite>— A. Parked</cite>
+          </blockquote>
+          <blockquote>
+            "The QR sync is genius — I scanned and had my pin on my phone in seconds."
+            <cite>— J. Commuter</cite>
+          </blockquote>
+          <blockquote>
+            "No account, no nonsense. Works offline when I need it most."
+            <cite>— S. Traveler</cite>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-slab">
+      <div class="container">
+        <h2>Ready to stop losing your car?</h2>
+        <p>Open the web app now — no install required. Works on phone and desktop.</p>
+        <a class="btn primary large" href="/">Open the App</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>© {new Date().getFullYear()} Where Did I Park — Privacy-first parking helper</div>
+      <div class="footer-links">
+        <a href="/marketing/pricing.html">Pricing</a>
+        <a href="/marketing/about.html">About</a>
+        <a href="mailto:hello@where-did-i-park.example">Contact</a>
+      </div>
+    </div>
+  </footer>
+  <script>
+    (function(){
+      // Point the marketing "Open App" links to the local dev server.
+      const appUrl = 'http://127.0.0.1:5173/';
+      document.querySelectorAll('a.open-app').forEach(a=>a.href = appUrl);
+
+      // Add floating quick-open buttons (same tab or new tab).
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.right = '16px';
+      container.style.bottom = '16px';
+      container.style.zIndex = '9999';
+      container.innerHTML = '<a class="btn primary" id="openAppSame">Open App (same tab)</a> <a class="btn ghost" id="openAppNew">Open App (new tab)</a>';
+      document.body.appendChild(container);
+      document.getElementById('openAppSame').addEventListener('click', ()=> window.location.href = appUrl);
+      document.getElementById('openAppNew').addEventListener('click', ()=> window.open(appUrl, '_blank'));
+    })();
+  </script>
+</body>
+</html>
